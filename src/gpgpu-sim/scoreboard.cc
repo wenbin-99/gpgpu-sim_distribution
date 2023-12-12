@@ -33,7 +33,8 @@
 
 // Constructor
 Scoreboard::Scoreboard(unsigned sid, unsigned n_warps, class gpgpu_t* gpu)
-    : longopregs() {
+    : longopregs() {// ZWB：从语法角度还不懂。
+    //在构造函数的初始化列表中，使用默认构造函数对成员变量 longopregs 进行了初始化。
   m_sid = sid;
   // Initialize size of table
   reg_table.resize(n_warps);
@@ -47,8 +48,8 @@ void Scoreboard::printContents() const {
   printf("scoreboard contents (sid=%d): \n", m_sid);
   for (unsigned i = 0; i < reg_table.size(); i++) {
     if (reg_table[i].size() == 0) continue;
-    printf("  wid = %2d: ", i);
-    std::set<unsigned>::const_iterator it;
+    printf("  wid = %2d: ", i);     // ZWB：Warp ID是指单个SIMT核中的ID，从0开始
+    std::set<unsigned>::const_iterator it;  //ZWB：遍历set的值，从语法角度要学习
     for (it = reg_table[i].begin(); it != reg_table[i].end(); it++)
       printf("%u ", *it);
     printf("\n");
@@ -57,7 +58,7 @@ void Scoreboard::printContents() const {
 
 void Scoreboard::reserveRegister(unsigned wid, unsigned regnum) {
   if (!(reg_table[wid].find(regnum) == reg_table[wid].end())) {
-    printf(
+    printf(     //ZWB：检查值是否在set中，直接用!=不是更好
         "Error: trying to reserve an already reserved register (sid=%d, "
         "wid=%d, regnum=%d).",
         m_sid, wid, regnum);
@@ -65,20 +66,20 @@ void Scoreboard::reserveRegister(unsigned wid, unsigned regnum) {
   }
   SHADER_DPRINTF(SCOREBOARD, "Reserved Register - warp:%d, reg: %d\n", wid,
                  regnum);
-  reg_table[wid].insert(regnum);
+  reg_table[wid].insert(regnum);  //ZWB：将值放入set中
 }
 
 // Unmark register as write-pending
 void Scoreboard::releaseRegister(unsigned wid, unsigned regnum) {
-  if (!(reg_table[wid].find(regnum) != reg_table[wid].end())) return;
+  if (!(reg_table[wid].find(regnum) != reg_table[wid].end())) return; //ZWB：直接用==更好
   SHADER_DPRINTF(SCOREBOARD, "Release register - warp:%d, reg: %d\n", wid,
                  regnum);
   reg_table[wid].erase(regnum);
 }
-
+// ZWB：从功能上说为什么长延时指令要单独记录出来
 const bool Scoreboard::islongop(unsigned warp_id, unsigned regnum) {
   return longopregs[warp_id].find(regnum) != longopregs[warp_id].end();
-}
+}// ZWB：又不是指针或引用，在这里加const没有意义？
 
 void Scoreboard::reserveRegisters(const class warp_inst_t* inst) {
   for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++) {
@@ -128,14 +129,15 @@ void Scoreboard::releaseRegisters(const class warp_inst_t* inst) {
 bool Scoreboard::checkCollision(unsigned wid, const class inst_t* inst) const {
   // Get list of all input and output registers
   std::set<int> inst_regs;
-
-  for (unsigned iii = 0; iii < inst->outcount; iii++)
+  
+  // 以下代码对应什么情况
+  for (unsigned iii = 0; iii < inst->outcount; iii++) // 目标寄存器
     inst_regs.insert(inst->out[iii]);
 
-  for (unsigned jjj = 0; jjj < inst->incount; jjj++)
+  for (unsigned jjj = 0; jjj < inst->incount; jjj++)  // 输入寄存器
     inst_regs.insert(inst->in[jjj]);
 
-  if (inst->pred > 0) inst_regs.insert(inst->pred);
+  if (inst->pred > 0) inst_regs.insert(inst->pred);   // 这里是什么含义？
   if (inst->ar1 > 0) inst_regs.insert(inst->ar1);
   if (inst->ar2 > 0) inst_regs.insert(inst->ar2);
 

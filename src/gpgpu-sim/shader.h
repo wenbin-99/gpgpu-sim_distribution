@@ -1021,7 +1021,7 @@ struct ifetch_buffer_t {
   ifetch_buffer_t(address_type pc, unsigned nbytes, unsigned warp_id) {
     m_valid = true;
     m_pc = pc;
-    m_nbytes = nbytes;
+    m_nbytes = nbytes;  // ZWB：表示字节数
     m_warp_id = warp_id;
   }
 
@@ -1879,6 +1879,7 @@ class shader_core_ctx : public core_t {
                   unsigned shader_id, unsigned tpc_id,
                   const shader_core_config *config,
                   const memory_config *mem_config, shader_core_stats *stats);
+  // ZWB：传参的时候class表示什么？
 
   // used by simt_core_cluster:
   // modifiers
