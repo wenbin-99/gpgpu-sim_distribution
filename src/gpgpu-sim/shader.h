@@ -83,7 +83,7 @@ enum exec_unit_type_t {
   SPECIALIZED = 7
 };
 
-class thread_ctx_t {
+class thread_ctx_t {  // ZWB：ctx表示上下文信息
  public:
   unsigned m_cta_id;  // hardware CTA this thread belongs
 
@@ -97,10 +97,10 @@ class thread_ctx_t {
   bool m_active;
 };
 
-class shd_warp_t {
+class shd_warp_t {  // ZWB：对每个warp进行建模；和I-Buffer相关的逻辑较多，其实是一个FIFO
  public:
   shd_warp_t(class shader_core_ctx *shader, unsigned warp_size)
-      : m_shader(shader), m_warp_size(warp_size) {
+      : m_shader(shader), m_warp_size(warp_size) {  // 这里表示参数值传入
     m_stores_outstanding = 0;
     m_inst_in_pipeline = 0;
     reset();
@@ -127,7 +127,7 @@ class shd_warp_t {
             unsigned dynamic_warp_id) {
     m_cta_id = cta_id;
     m_warp_id = wid;
-    m_dynamic_warp_id = dynamic_warp_id;
+    m_dynamic_warp_id = dynamic_warp_id;  // ZWB：dynamic warp id是外部的，
     m_next_pc = start_pc;
     assert(n_completed >= active.count());
     assert(n_completed <= m_warp_size);
@@ -182,7 +182,7 @@ class shd_warp_t {
     assert(slot < IBUFFER_SIZE);
     m_ibuffer[slot].m_inst = pI;
     m_ibuffer[slot].m_valid = true;
-    m_next = 0;
+    m_next = 0;     // ZWB：m_next是I-Buffer的指针，一次取两条，所以将m_next置0；在哪体现取两条的？
   }
   bool ibuffer_empty() const {
     for (unsigned i = 0; i < IBUFFER_SIZE; i++)
@@ -191,7 +191,7 @@ class shd_warp_t {
   }
   void ibuffer_flush() {
     for (unsigned i = 0; i < IBUFFER_SIZE; i++) {
-      if (m_ibuffer[i].m_valid) dec_inst_in_pipeline();
+      if (m_ibuffer[i].m_valid) dec_inst_in_pipeline();   // ZWB：dec_inst_in_pipeline？
       m_ibuffer[i].m_inst = NULL;
       m_ibuffer[i].m_valid = false;
     }
@@ -230,7 +230,7 @@ class shd_warp_t {
   void inc_inst_in_pipeline() { m_inst_in_pipeline++; }
   void dec_inst_in_pipeline() {
     assert(m_inst_in_pipeline > 0);
-    m_inst_in_pipeline--;
+    m_inst_in_pipeline--;   // ZWB：为什么这里是--
   }
 
   unsigned get_cta_id() const { return m_cta_id; }
@@ -240,7 +240,7 @@ class shd_warp_t {
 
   class shader_core_ctx * get_shader() { return m_shader; }
  private:
-  static const unsigned IBUFFER_SIZE = 2;
+  static const unsigned IBUFFER_SIZE = 2;   // ZWB：static表示类的成员变量，const表示常量
   class shader_core_ctx *m_shader;
   unsigned m_cta_id;
   unsigned m_warp_id;
@@ -258,7 +258,7 @@ class shd_warp_t {
       m_valid = false;
       m_inst = NULL;
     }
-    const warp_inst_t *m_inst;
+    const warp_inst_t *m_inst;  // ZWB：I-Buffer中存的是warp_inst_t，看函数/方法了解下为什么加const
     bool m_valid;
   };
 
