@@ -83,7 +83,7 @@ enum exec_unit_type_t {
   SPECIALIZED = 7
 };
 
-class thread_ctx_t {  // ZWB：ctx表示上下文信息
+class thread_ctx_t {  // ctx表示上下文信息
  public:
   unsigned m_cta_id;  // hardware CTA this thread belongs
 
@@ -97,7 +97,7 @@ class thread_ctx_t {  // ZWB：ctx表示上下文信息
   bool m_active;
 };
 
-class shd_warp_t {  // ZWB：对每个warp进行建模；和I-Buffer相关的逻辑较多，其实是一个FIFO
+class shd_warp_t {  // 对每个warp进行建模；和I-Buffer相关的逻辑较多，其实是一个FIFO
  public:
   shd_warp_t(class shader_core_ctx *shader, unsigned warp_size)
       : m_shader(shader), m_warp_size(warp_size) {  // 这里表示参数值传入
@@ -127,7 +127,7 @@ class shd_warp_t {  // ZWB：对每个warp进行建模；和I-Buffer相关的逻
             unsigned dynamic_warp_id) {
     m_cta_id = cta_id;
     m_warp_id = wid;
-    m_dynamic_warp_id = dynamic_warp_id;  // ZWB：dynamic warp id是外部的，是从软件角度来说的，或者标识了warp在CTA中的位置
+    m_dynamic_warp_id = dynamic_warp_id;  // dynamic warp id是外部的，是从软件角度来说的，或者标识了warp在CTA中的位置
                                           // warp id是内部的，是从SIMT Core角度说的，是warp在SIMT Core中的编号？
     m_next_pc = start_pc;
     assert(n_completed >= active.count());
@@ -183,7 +183,7 @@ class shd_warp_t {  // ZWB：对每个warp进行建模；和I-Buffer相关的逻
     assert(slot < IBUFFER_SIZE);
     m_ibuffer[slot].m_inst = pI;
     m_ibuffer[slot].m_valid = true;
-    m_next = 0;     // ZWB：m_next是I-Buffer的指针；将m_next置0，表示空了才会再取
+    m_next = 0;     // m_next是I-Buffer的指针；将m_next置0，表示空了才会再取
                     // 在decode函数中，要么取回来一条，要么取回来两条
   }
   bool ibuffer_empty() const {
@@ -193,7 +193,7 @@ class shd_warp_t {  // ZWB：对每个warp进行建模；和I-Buffer相关的逻
   }
   void ibuffer_flush() {
     for (unsigned i = 0; i < IBUFFER_SIZE; i++) {
-      if (m_ibuffer[i].m_valid) dec_inst_in_pipeline();   // ZWB：dec_inst_in_pipeline？
+      if (m_ibuffer[i].m_valid) dec_inst_in_pipeline();   // dec_inst_in_pipeline？
       m_ibuffer[i].m_inst = NULL;
       m_ibuffer[i].m_valid = false;
     }
@@ -232,7 +232,7 @@ class shd_warp_t {  // ZWB：对每个warp进行建模；和I-Buffer相关的逻
   void inc_inst_in_pipeline() { m_inst_in_pipeline++; }
   void dec_inst_in_pipeline() {
     assert(m_inst_in_pipeline > 0);
-    m_inst_in_pipeline--;   // ZWB：为什么这里是--
+    m_inst_in_pipeline--;   // 为什么这里是--
   }
 
   unsigned get_cta_id() const { return m_cta_id; }
@@ -242,7 +242,7 @@ class shd_warp_t {  // ZWB：对每个warp进行建模；和I-Buffer相关的逻
 
   class shader_core_ctx * get_shader() { return m_shader; }
  private:
-  static const unsigned IBUFFER_SIZE = 2;   // ZWB：static表示类的成员变量，const表示常量
+  static const unsigned IBUFFER_SIZE = 2;   // static表示类的成员变量，const表示常量
   class shader_core_ctx *m_shader;
   unsigned m_cta_id;
   unsigned m_warp_id;
@@ -260,7 +260,7 @@ class shd_warp_t {  // ZWB：对每个warp进行建模；和I-Buffer相关的逻
       m_valid = false;
       m_inst = NULL;
     }
-    const warp_inst_t *m_inst;  // ZWB：I-Buffer中存的是warp_inst_t，看函数/方法了解下为什么加const
+    const warp_inst_t *m_inst;  // I-Buffer中存的是warp_inst_t，看函数/方法了解下为什么加const
     bool m_valid;
   };
 
@@ -327,7 +327,7 @@ enum concrete_scheduler {
 
 class scheduler_unit {  // this can be copied freely, so can be used in std
                         // containers.
-                        // ZWB：基本的调度器，在后边被各种调度器继承
+                        // 基本的调度器，在后边被各种调度器继承
  public:
   scheduler_unit(shader_core_stats *stats, shader_core_ctx *shader,
                  Scoreboard *scoreboard, simt_stack **simt,
@@ -336,8 +336,8 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
                  register_set *int_out, register_set *tensor_core_out,
                  std::vector<register_set *> &spec_cores_out,
                  register_set *mem_out, int id)   
-                 //ZWB：该类中的变量都是指针，因为调度逻辑读取指针的内容
-                 //ZWB：**是二重指针，或者说是指向数组的指针
+                 //该类中的变量都是指针，因为调度逻辑读取指针的内容
+                 //**是二重指针，或者说是指向数组的指针
       : m_supervised_warps(),
         m_stats(stats),
         m_shader(shader),
@@ -409,7 +409,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
 
   // This is the prioritized warp list that is looped over each cycle to
   // determine which warp gets to issue.
-  std::vector<shd_warp_t *> m_next_cycle_prioritized_warps;   // ZWB：调度算法应该是改这个表
+  std::vector<shd_warp_t *> m_next_cycle_prioritized_warps;   // 调度算法应该是改这个表
   // The m_supervised_warps list is all the warps this scheduler is supposed to
   // arbitrate between.  This is useful in systems where there is more than
   // one warp scheduler. In a single scheduler system, this is simply all
@@ -565,6 +565,7 @@ class swl_scheduler : public scheduler_unit {
 };
 
 class opndcoll_rfu_t {  // operand collector based register file unit
+// 建模了完整的操作数收集逻辑，包括寄存器文件，各个collector set（分SP和SFU）
  public:
   // constructors
   opndcoll_rfu_t() {
@@ -583,7 +584,7 @@ class opndcoll_rfu_t {  // operand collector based register file unit
   bool writeback(warp_inst_t &warp);
 
   void step() {
-    dispatch_ready_cu();  // ZWB：前三个的逆序执行可以理解，最后的processe_banks是什么功能
+    dispatch_ready_cu();  // 前三个的逆序执行可以理解，最后的processe_banks是什么功能
     allocate_reads();
     for (unsigned p = 0; p < m_in_ports.size(); p++) allocate_cu(p);
     process_banks();
@@ -865,7 +866,7 @@ class opndcoll_rfu_t {  // operand collector based register file unit
       m_free = true;
       m_warp = NULL;
       m_output_register = NULL;
-      m_src_op = new op_t[MAX_REG_OPERANDS * 2];
+      m_src_op = new op_t[MAX_REG_OPERANDS * 2];    // 每条指令最多两个源操作数？
       m_not_ready.reset();
       m_warp_id = -1;
       m_num_banks = 0;
@@ -914,15 +915,17 @@ class opndcoll_rfu_t {  // operand collector based register file unit
   };
 
   class dispatch_unit_t {
-   public:
-    dispatch_unit_t(std::vector<collector_unit_t> *cus) {
+    // 这里的dispatch unit是指从collect unit set到执行级
+   public:      
+    dispatch_unit_t(std::vector<collector_unit_t> *cus) { 
+              // 传入一个collect unit set，表明dispatch_unit属于该collect unit set
       m_last_cu = 0;
       m_collector_units = cus;
       m_num_collectors = (*cus).size();
       m_next_cu = 0;
     }
 
-    collector_unit_t *find_ready() {
+    collector_unit_t *find_ready() {  // 这里使用Round Robin找到第一个ready的
       for (unsigned n = 0; n < m_num_collectors; n++) {
         unsigned c = (m_last_cu + n + 1) % m_num_collectors;
         if ((*m_collector_units)[c].ready()) {
@@ -937,7 +940,7 @@ class opndcoll_rfu_t {  // operand collector based register file unit
     unsigned m_num_collectors;
     std::vector<collector_unit_t> *m_collector_units;
     unsigned m_last_cu;  // dispatch ready cu's rr  
-                         // ZWB：dispatch的位置也是用了Round Robin
+                         // dispatch的位置也是用了Round Robin
     unsigned m_next_cu;  // for initialization
   };
 
@@ -963,11 +966,11 @@ class opndcoll_rfu_t {  // operand collector based register file unit
   // warp_inst_t **m_alu_port;
 
   std::vector<input_port_t> m_in_ports;
-  typedef std::map<unsigned /* collector set */,      // ZWB
+  typedef std::map<unsigned /* collector set */,      // ZWB：这里是一个字典，key表示执行单元类型
                    std::vector<collector_unit_t> /*collector sets*/>
       cu_sets_t;
   cu_sets_t m_cus;
-  std::vector<dispatch_unit_t> m_dispatch_units;    // ZWB：还是包括多个Dispatch Unit和Collector set的
+  std::vector<dispatch_unit_t> m_dispatch_units;
 
   // typedef std::map<warp_inst_t**/*port*/,dispatch_unit_t> port_to_du_t;
   // port_to_du_t                     m_dispatch_units;
@@ -1027,7 +1030,7 @@ struct ifetch_buffer_t {
   ifetch_buffer_t(address_type pc, unsigned nbytes, unsigned warp_id) {
     m_valid = true;
     m_pc = pc;
-    m_nbytes = nbytes;  // ZWB：表示字节数
+    m_nbytes = nbytes;  // 表示字节数
     m_warp_id = warp_id;
   }
 
@@ -1885,7 +1888,7 @@ class shader_core_ctx : public core_t {
                   unsigned shader_id, unsigned tpc_id,
                   const shader_core_config *config,
                   const memory_config *mem_config, shader_core_stats *stats);
-  // ZWB：传参的时候class表示什么？不是多余的吗？
+  // 传参的时候class表示什么？不是多余的吗？
 
   // used by simt_core_cluster:
   // modifiers
@@ -2231,7 +2234,7 @@ class shader_core_ctx : public core_t {
   std::vector<register_set *> m_specilized_dispatch_reg;
 
   // schedule
-  std::vector<scheduler_unit *> schedulers;   // ZWB：一个SIMT Core包含多个scheduler_unit
+  std::vector<scheduler_unit *> schedulers;   // 一个SIMT Core包含多个scheduler_unit
 
   // issue
   unsigned int Issue_Prio;

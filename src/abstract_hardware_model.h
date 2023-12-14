@@ -997,7 +997,7 @@ class warp_inst_t : public inst_t {
   warp_inst_t() {
     m_uid = 0;
     m_empty = true;
-    m_config = NULL;
+    m_config = NULL;    // m_empty是在哪设置成非空的
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1283,11 +1283,12 @@ class core_t {
 };
 
 // register that can hold multiple instructions.
+// register_set中的regs是warp_inst_t指针的数组
 class register_set {
  public:
   register_set(unsigned num, const char *name) {
     for (unsigned i = 0; i < num; i++) {
-      regs.push_back(new warp_inst_t());   // ZWB：new warp_inst_t()返回的是指针
+      regs.push_back(new warp_inst_t());   // new warp_inst_t()返回的是指针
     }
     m_name = name;
   }
@@ -1302,6 +1303,7 @@ class register_set {
   bool has_free(bool sub_core_model, unsigned reg_id) {
     // in subcore model, each sched has a one specific reg to use (based on
     // sched id)
+    // 如果有Sub Core，有直接的对应关系，而不是有空的就行
     if (!sub_core_model) return has_free();
 
     assert(reg_id < regs.size());
@@ -1309,7 +1311,7 @@ class register_set {
   }
   bool has_ready() {
     for (unsigned i = 0; i < regs.size(); i++) {
-      if (not regs[i]->empty()) {
+      if (not regs[i]->empty()) {   // 空的就free，不空的就ready
         return true;
       }
     }
@@ -1336,7 +1338,7 @@ class register_set {
         if (ready and (*ready)->get_uid() < regs[i]->get_uid()) {
           // ready is oldest
         } else {
-          ready = &regs[i];
+          ready = &regs[i];   // 选择出最老的，后边有用到这条性质吗？
         }
       }
     }

@@ -85,9 +85,9 @@ void shader_core_ctx::create_front_pipeline() {
   // pipeline_stages is the sum of normal pipeline stages and specialized_unit
   // stages * 2 (for ID and EX)
   unsigned total_pipeline_stages =
-      N_PIPELINE_STAGES + m_config->m_specialized_unit.size() * 2;
+      N_PIPELINE_STAGES + m_config->m_specialized_unit.size() * 2;  // specialized_unit为什么要增加？
   m_pipeline_reg.reserve(total_pipeline_stages);
-  for (int j = 0; j < N_PIPELINE_STAGES; j++) {
+  for (int j = 0; j < N_PIPELINE_STAGES; j++) {     // 即使没有相应的执行单元，这里也生成了
     m_pipeline_reg.push_back(
         register_set(m_config->pipe_widths[j], pipeline_stage_name_decode[j]));
   }
@@ -109,6 +109,7 @@ void shader_core_ctx::create_front_pipeline() {
   if (m_config->sub_core_model) {
     // in subcore model, each scheduler should has its own issue register, so
     // num scheduler = reg width
+    // 每个sub core内，调度单元数量和流水线寄存器数量一致
     assert(m_config->gpgpu_num_sched_per_core ==
            m_pipeline_reg[ID_OC_SP].get_size());
     assert(m_config->gpgpu_num_sched_per_core ==
@@ -161,7 +162,7 @@ void shader_core_ctx::create_front_pipeline() {
 
 void shader_core_ctx::create_schedulers() {
   m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader, m_gpu);
-    // ZWB：每个SIMT Core拥有的调度器数量是可以配置的，但具体和什么相关呢，执行单元的组数吗？
+    // 每个SIMT Core拥有的调度器数量是可以配置的，但具体和什么相关呢，执行单元的组数吗？
     // 好像又不对，如果每个scheduler都有执行单元和其对应，那为什么scheduler间还用Round Robin
   // scedulers
   // must currently occur after all inputs have been initialized.
@@ -232,27 +233,28 @@ void shader_core_ctx::create_schedulers() {
     // distribute i's evenly though schedulers;
     schedulers[i % m_config->gpgpu_num_sched_per_core]->add_supervised_warp_id(
         i);
-  } // ZWB：warp在scheduler是平均分配的，又是从什么角度考虑的？
+  } // warp在scheduler是平均分配的，又是从什么角度考虑的？
   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; ++i) {
     schedulers[i]->done_adding_supervised_warps();
   }
 }
 
 void shader_core_ctx::create_exec_pipeline() {
+  // 生成执行流水线，在该函数中实例化各个子模块的类
   // op collector configuration
   enum { SP_CUS, DP_CUS, SFU_CUS, TENSOR_CORE_CUS, INT_CUS, MEM_CUS, GEN_CUS };
 
-  opndcoll_rfu_t::port_vector_t in_ports;
+  opndcoll_rfu_t::port_vector_t in_ports;   // 相对warp_inst_t是二维的
   opndcoll_rfu_t::port_vector_t out_ports;
-  opndcoll_rfu_t::uint_vector_t cu_sets;
+  opndcoll_rfu_t::uint_vector_t cu_sets;    // 这三个是临时变量，故每次循环后清掉
 
   // configure generic collectors
-  m_operand_collector.add_cu_set(
+  m_operand_collector.add_cu_set(   // 以下两个参数的默认值是0，换句话说，默认没通用端口
       GEN_CUS, m_config->gpgpu_operand_collector_num_units_gen,
       m_config->gpgpu_operand_collector_num_out_ports_gen);
 
   for (unsigned i = 0; i < m_config->gpgpu_operand_collector_num_in_ports_gen;
-       i++) {
+       i++) {                             // 这个参数还是0，默认没通用的；通用类似于CPU中统一的Issue Window
     in_ports.push_back(&m_pipeline_reg[ID_OC_SP]);
     in_ports.push_back(&m_pipeline_reg[ID_OC_SFU]);
     in_ports.push_back(&m_pipeline_reg[ID_OC_MEM]);
@@ -267,7 +269,7 @@ void shader_core_ctx::create_exec_pipeline() {
       in_ports.push_back(&m_pipeline_reg[ID_OC_DP]);
       out_ports.push_back(&m_pipeline_reg[OC_EX_DP]);
     }
-    if (m_config->gpgpu_num_int_units > 0) {
+    if (m_config->gpgpu_num_int_units > 0) {    // 这里的int和后边的sp有什么差别
       in_ports.push_back(&m_pipeline_reg[ID_OC_INT]);
       out_ports.push_back(&m_pipeline_reg[OC_EX_INT]);
     }
@@ -286,31 +288,35 @@ void shader_core_ctx::create_exec_pipeline() {
 
   if (m_config->enable_specialized_operand_collector) {
     m_operand_collector.add_cu_set(
-        SP_CUS, m_config->gpgpu_operand_collector_num_units_sp,
-        m_config->gpgpu_operand_collector_num_out_ports_sp);
-    m_operand_collector.add_cu_set(
+        SP_CUS, m_config->gpgpu_operand_collector_num_units_sp, // 6 in Fermi
+        m_config->gpgpu_operand_collector_num_out_ports_sp);    // 2 in Fermi
+    m_operand_collector.add_cu_set(   // 默认是0，Fermi中没有
         DP_CUS, m_config->gpgpu_operand_collector_num_units_dp,
         m_config->gpgpu_operand_collector_num_out_ports_dp);
-    m_operand_collector.add_cu_set(
+    m_operand_collector.add_cu_set(   // Fermi中应该没有Tensor Core，但默认不是0
         TENSOR_CORE_CUS,
         m_config->gpgpu_operand_collector_num_units_tensor_core,
         m_config->gpgpu_operand_collector_num_out_ports_tensor_core);
     m_operand_collector.add_cu_set(
-        SFU_CUS, m_config->gpgpu_operand_collector_num_units_sfu,
-        m_config->gpgpu_operand_collector_num_out_ports_sfu);
+        SFU_CUS, m_config->gpgpu_operand_collector_num_units_sfu,   // 8 in Fermi
+        m_config->gpgpu_operand_collector_num_out_ports_sfu);       // 默认1
     m_operand_collector.add_cu_set(
         MEM_CUS, m_config->gpgpu_operand_collector_num_units_mem,
         m_config->gpgpu_operand_collector_num_out_ports_mem);
     m_operand_collector.add_cu_set(
-        INT_CUS, m_config->gpgpu_operand_collector_num_units_int,
+        INT_CUS, m_config->gpgpu_operand_collector_num_units_int,   // 默认是0
         m_config->gpgpu_operand_collector_num_out_ports_int);
 
+    // 既然流水线宽度在register_set中，应该是输入端口和输出端口是非绑定的，从一个进，可以从另一个出
+    // 毕竟从collector unit出使用了Round Robin
+    // 在具体的执行逻辑中应该可以看出
     for (unsigned i = 0; i < m_config->gpgpu_operand_collector_num_in_ports_sp;
-         i++) {
-      in_ports.push_back(&m_pipeline_reg[ID_OC_SP]);
-      out_ports.push_back(&m_pipeline_reg[OC_EX_SP]);
+         i++) {                                         // m_pipeline_reg是在生成前端时就例化了，这里只是连接
+      in_ports.push_back(&m_pipeline_reg[ID_OC_SP]);    // 对warp_inst_t也是二维的
+                                                        // 第一维是流水线哪级的寄存器，第二级是流水线的宽度
+      out_ports.push_back(&m_pipeline_reg[OC_EX_SP]);   // 应该是默认了in_ports和out_ports数量一致
       cu_sets.push_back((unsigned)SP_CUS);
-      cu_sets.push_back((unsigned)GEN_CUS);
+      cu_sets.push_back((unsigned)GEN_CUS);   // 所有的都有GEN_CUS，应该是所有端口都可以连到GEN_CUS
       m_operand_collector.add_port(in_ports, out_ports, cu_sets);
       in_ports.clear(), out_ports.clear(), cu_sets.clear();
     }
@@ -379,7 +385,7 @@ void shader_core_ctx::create_exec_pipeline() {
   // m_fu = new simd_function_unit*[m_num_function_units];
 
   for (int k = 0; k < m_config->gpgpu_num_sp_units; k++) {
-    m_fu.push_back(new sp_unit(&m_pipeline_reg[EX_WB], m_config, this));
+    m_fu.push_back(new sp_unit(&m_pipeline_reg[EX_WB], m_config, this)); // 都有EX_WB应该表明了共享写回端口
     m_dispatch_port.push_back(ID_OC_SP);
     m_issue_port.push_back(OC_EX_SP);
   }
@@ -856,7 +862,7 @@ void shader_core_ctx::decode() {
     // decode 1 or 2 instructions and place them into ibuffer
     address_type pc = m_inst_fetch_buffer.m_pc;
     const warp_inst_t *pI1 = get_next_inst(m_inst_fetch_buffer.m_warp_id, pc);
-    // ZWB：默认取第一条一定会成功，是在哪里保证的？
+    // 默认取第一条一定会成功，是在哪里保证的？
     // 这部分应该没有仿真功能，因为没有给出decode后对应的控制信号？或者是怎么存的？
     m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_fill(0, pI1);
     m_warp[m_inst_fetch_buffer.m_warp_id]->inc_inst_in_pipeline();
@@ -1027,7 +1033,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   m_warp[warp_id]->set_next_pc(next_inst->pc + next_inst->isize);
 }
 
-void shader_core_ctx::issue() {   // ZWB：多个scheduler间采用Round Robin？是怎么组织的
+void shader_core_ctx::issue() {   // 多个scheduler间采用Round Robin？是怎么组织的
   // Ensure fair round robin issu between schedulers
   unsigned j;
   for (unsigned i = 0; i < schedulers.size(); i++) {
@@ -1097,7 +1103,7 @@ void scheduler_unit::order_lrr(
  * list of integer warp_ids with the oldest warps having the most priority, then
  * the priority_function would compare the age of the two warps.
  */
-template <class T>    // ZWB：template <class T>表示函数是一个模板函数
+template <class T>    // template <class T>表示函数是一个模板函数
 void scheduler_unit::order_by_priority(
     std::vector<T> &result_list, const typename std::vector<T> &input_list,
     const typename std::vector<T>::const_iterator &last_issued_from_input,
@@ -3835,13 +3841,13 @@ void opndcoll_rfu_t::add_cu_set(unsigned set_id, unsigned num_cu,
                                 unsigned num_dispatch) {
   m_cus[set_id].reserve(num_cu);  // this is necessary to stop pointers in m_cu
                                   // from being invalid do to a resize;
-                                  // ZWB：开始不是空的吗？逆序有什么用？
+                                  // 首先分配出足够的空间，避免空间不足时重新分配使原来的指针失效
   for (unsigned i = 0; i < num_cu; i++) {
     m_cus[set_id].push_back(collector_unit_t());  // m_cus分组了cu的实体；每组是三个，对应一条指令吗
     m_cu.push_back(&m_cus[set_id].back());        // m_cu记录了所有cu的指针
   }
   // for now each collector set gets dedicated dispatch units.
-  for (unsigned i = 0; i < num_dispatch; i++) {
+  for (unsigned i = 0; i < num_dispatch; i++) {   // 这里的dispatch uni是指collector unit前还是后
     m_dispatch_units.push_back(dispatch_unit_t(&m_cus[set_id]));
   }
 }

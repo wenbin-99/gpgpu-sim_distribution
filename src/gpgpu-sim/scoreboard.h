@@ -41,11 +41,11 @@ class Scoreboard {
  public:
   Scoreboard(unsigned sid, unsigned n_warps, class gpgpu_t *gpu);
 
-  void reserveRegisters(const warp_inst_t *inst); // ZWB：应该加两个const表示既不修改指针，又不修改值？
+  void reserveRegisters(const warp_inst_t *inst); // 应该加两个const表示既不修改指针，又不修改值？
   void releaseRegisters(const warp_inst_t *inst);
   void releaseRegister(unsigned wid, unsigned regnum);
 
-  bool checkCollision(unsigned wid, const inst_t *inst) const; // ZWB：这里的const表示承诺不修改类中变量
+  bool checkCollision(unsigned wid, const inst_t *inst) const; // 这里的const表示承诺不修改类中变量
   bool pendingWrites(unsigned wid) const;
   void printContents() const;
   const bool islongop(unsigned warp_id, unsigned regnum);
@@ -58,7 +58,7 @@ class Scoreboard {
 
   // keeps track of pending writes to registers
   // indexed by warp id, reg_id => pending write count
-  std::vector<std::set<unsigned> > reg_table;   // ZWB：记录目标寄存器的核心内容，用stl中的数据结构
+  std::vector<std::set<unsigned> > reg_table;   // 记录目标寄存器的核心内容，用stl中的数据结构
   // Register that depend on a long operation (global, local or tex memory)
   std::vector<std::set<unsigned> > longopregs;
 
