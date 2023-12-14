@@ -74,16 +74,22 @@ std::list<unsigned> shader_core_ctx::get_regs_written(const inst_t &fvt) const {
   return result;
 }
 
+// 主要建模思路：类中的各个变量表示仿真系统中的子模块（往往是指针的形式）
+//              在各个构建函数中为子模块添加实体，并且指定了子模块的连接关系
+
+// shd_warp_t 主要是per warp的I-Buffer相关逻辑
 void exec_shader_core_ctx::create_shd_warp() {
-  m_warp.resize(m_config->max_warps_per_shader);
+  m_warp.resize(m_config->max_warps_per_shader);    // 创建了指定大小的空向量
   for (unsigned k = 0; k < m_config->max_warps_per_shader; ++k) {
     m_warp[k] = new shd_warp_t(this, m_config->warp_size);
   }
 }
 
 void shader_core_ctx::create_front_pipeline() {
+
+  // 生成流水线各级间的流水线寄存器
   // pipeline_stages is the sum of normal pipeline stages and specialized_unit
-  // stages * 2 (for ID and EX)
+  // stages * 2 (for ID and EX) 
   unsigned total_pipeline_stages =
       N_PIPELINE_STAGES + m_config->m_specialized_unit.size() * 2;  // specialized_unit为什么要增加？
   m_pipeline_reg.reserve(total_pipeline_stages);
@@ -162,8 +168,7 @@ void shader_core_ctx::create_front_pipeline() {
 
 void shader_core_ctx::create_schedulers() {
   m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader, m_gpu);
-    // 每个SIMT Core拥有的调度器数量是可以配置的，但具体和什么相关呢，执行单元的组数吗？
-    // 好像又不对，如果每个scheduler都有执行单元和其对应，那为什么scheduler间还用Round Robin
+  // 每个SIMT Core拥有的调度器数量是可以配置的
   // scedulers
   // must currently occur after all inputs have been initialized.
   std::string sched_config = m_config->gpgpu_scheduler_string;
@@ -187,7 +192,7 @@ void shader_core_ctx::create_schedulers() {
       case CONCRETE_SCHEDULER_LRR:
         schedulers.push_back(new lrr_scheduler(
             m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
-            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
+            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],  // 通过传参数指定连接关系
             &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
             &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
             &m_pipeline_reg[ID_OC_MEM], i));
@@ -310,6 +315,8 @@ void shader_core_ctx::create_exec_pipeline() {
     // 既然流水线宽度在register_set中，应该是输入端口和输出端口是非绑定的，从一个进，可以从另一个出
     // 毕竟从collector unit出使用了Round Robin
     // 在具体的执行逻辑中应该可以看出
+    // 在操作数收集器中读操作数的延时不确定，所以肯定是没有对应关系的
+    // 多个流水线寄存器到collector unit的多个输入端口间有mux，所以这里有for循环
     for (unsigned i = 0; i < m_config->gpgpu_operand_collector_num_in_ports_sp;
          i++) {                                         // m_pipeline_reg是在生成前端时就例化了，这里只是连接
       in_ports.push_back(&m_pipeline_reg[ID_OC_SP]);    // 对warp_inst_t也是二维的

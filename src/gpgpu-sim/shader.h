@@ -336,8 +336,9 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
                  register_set *int_out, register_set *tensor_core_out,
                  std::vector<register_set *> &spec_cores_out,
                  register_set *mem_out, int id)   
-                 //该类中的变量都是指针，因为调度逻辑读取指针的内容
-                 //**是二重指针，或者说是指向数组的指针
+                 // 该类中的变量都是指针，因为调度逻辑读取指针的内容；或者说给出了连接关系
+                 // **是二重指针，或者说是指向数组的指针
+                 // sp_out是指scheduler与相应的collector unit间的接口
       : m_supervised_warps(),
         m_stats(stats),
         m_shader(shader),
@@ -424,7 +425,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   Scoreboard *m_scoreboard;
   simt_stack **m_simt_stack;
   // warp_inst_t** m_pipeline_reg;
-  std::vector<shd_warp_t *> *m_warp;
+  std::vector<shd_warp_t *> *m_warp;    // 二维指针，指向数字的指针
   register_set *m_sp_out;
   register_set *m_dp_out;
   register_set *m_sfu_out;
@@ -470,7 +471,7 @@ class gto_scheduler : public scheduler_unit {
   virtual ~gto_scheduler() {}
   virtual void order_warps();
   virtual void done_adding_supervised_warps() {
-    m_last_supervised_issued = m_supervised_warps.begin();
+    m_last_supervised_issued = m_supervised_warps.begin();  // 对于gto，issue出去的在第一个位置
   }
 };
 
