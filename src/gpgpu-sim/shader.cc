@@ -161,7 +161,8 @@ void shader_core_ctx::create_front_pipeline() {
 
 void shader_core_ctx::create_schedulers() {
   m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader, m_gpu);
-
+    // ZWB：每个SIMT Core拥有的调度器数量是可以配置的，但具体和什么相关呢，执行单元的组数吗？
+    // 好像又不对，如果每个scheduler都有执行单元和其对应，那为什么scheduler间还用Round Robin
   // scedulers
   // must currently occur after all inputs have been initialized.
   std::string sched_config = m_config->gpgpu_scheduler_string;
@@ -231,7 +232,7 @@ void shader_core_ctx::create_schedulers() {
     // distribute i's evenly though schedulers;
     schedulers[i % m_config->gpgpu_num_sched_per_core]->add_supervised_warp_id(
         i);
-  }
+  } // ZWB：warp在scheduler是平均分配的，又是从什么角度考虑的？
   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; ++i) {
     schedulers[i]->done_adding_supervised_warps();
   }
@@ -855,6 +856,8 @@ void shader_core_ctx::decode() {
     // decode 1 or 2 instructions and place them into ibuffer
     address_type pc = m_inst_fetch_buffer.m_pc;
     const warp_inst_t *pI1 = get_next_inst(m_inst_fetch_buffer.m_warp_id, pc);
+    // ZWB：默认取第一条一定会成功，是在哪里保证的？
+    // 这部分应该没有仿真功能，因为没有给出decode后对应的控制信号？或者是怎么存的？
     m_warp[m_inst_fetch_buffer.m_warp_id]->ibuffer_fill(0, pI1);
     m_warp[m_inst_fetch_buffer.m_warp_id]->inc_inst_in_pipeline();
     if (pI1) {
@@ -1024,12 +1027,12 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   m_warp[warp_id]->set_next_pc(next_inst->pc + next_inst->isize);
 }
 
-void shader_core_ctx::issue() {
+void shader_core_ctx::issue() {   // ZWB：多个scheduler间采用Round Robin？是怎么组织的
   // Ensure fair round robin issu between schedulers
   unsigned j;
   for (unsigned i = 0; i < schedulers.size(); i++) {
     j = (Issue_Prio + i) % schedulers.size();
-    schedulers[j]->cycle();
+    schedulers[j]->cycle();     // 这里一定可以issue出去吗？应该不一定，不然轮询有什么意义
   }
   Issue_Prio = (Issue_Prio + 1) % schedulers.size();
 
@@ -1094,7 +1097,7 @@ void scheduler_unit::order_lrr(
  * list of integer warp_ids with the oldest warps having the most priority, then
  * the priority_function would compare the age of the two warps.
  */
-template <class T>
+template <class T>    // ZWB：template <class T>表示函数是一个模板函数
 void scheduler_unit::order_by_priority(
     std::vector<T> &result_list, const typename std::vector<T> &input_list,
     const typename std::vector<T>::const_iterator &last_issued_from_input,
@@ -1439,15 +1442,15 @@ void scheduler_unit::do_on_warp_issued(
 
 bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
                                                      shd_warp_t *rhs) {
-  if (rhs && lhs) {
+  if (rhs && lhs) { // 两个都不是空指针
     if (lhs->done_exit() || lhs->waiting()) {
-      return false;
+      return false; 
     } else if (rhs->done_exit() || rhs->waiting()) {
       return true;
     } else {
-      return lhs->get_dynamic_warp_id() < rhs->get_dynamic_warp_id();
-    }
-  } else {
+      return lhs->get_dynamic_warp_id() < rhs->get_dynamic_warp_id(); 
+    }       // 动态warp id小的排在前面？看来动态warp id是跨了CTA的，而不是在同一个CTA中的
+  } else {  // 有空指针直接比地址
     return lhs < rhs;
   }
 }
@@ -3832,9 +3835,10 @@ void opndcoll_rfu_t::add_cu_set(unsigned set_id, unsigned num_cu,
                                 unsigned num_dispatch) {
   m_cus[set_id].reserve(num_cu);  // this is necessary to stop pointers in m_cu
                                   // from being invalid do to a resize;
+                                  // ZWB：开始不是空的吗？逆序有什么用？
   for (unsigned i = 0; i < num_cu; i++) {
-    m_cus[set_id].push_back(collector_unit_t());
-    m_cu.push_back(&m_cus[set_id].back());
+    m_cus[set_id].push_back(collector_unit_t());  // m_cus分组了cu的实体；每组是三个，对应一条指令吗
+    m_cu.push_back(&m_cus[set_id].back());        // m_cu记录了所有cu的指针
   }
   // for now each collector set gets dedicated dispatch units.
   for (unsigned i = 0; i < num_dispatch; i++) {

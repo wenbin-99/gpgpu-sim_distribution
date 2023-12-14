@@ -1287,7 +1287,7 @@ class register_set {
  public:
   register_set(unsigned num, const char *name) {
     for (unsigned i = 0; i < num; i++) {
-      regs.push_back(new warp_inst_t());
+      regs.push_back(new warp_inst_t());   // ZWB：new warp_inst_t()返回的是指针
     }
     m_name = name;
   }
