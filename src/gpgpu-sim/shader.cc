@@ -396,6 +396,8 @@ void shader_core_ctx::create_exec_pipeline() {
     m_dispatch_port.push_back(ID_OC_SP);
     m_issue_port.push_back(OC_EX_SP);
   }
+  // 这里还是有for循环，表明sp_unit可以接受任一来自OC_EX_SP类型流水线寄存器的输入；有必要这样吗？
+  // 这里还需要给出ID_OC_SP这一级的流水线寄存器信息吗
 
   for (int k = 0; k < m_config->gpgpu_num_dp_units; k++) {
     m_fu.push_back(new dp_unit(&m_pipeline_reg[EX_WB], m_config, this));
@@ -1040,14 +1042,15 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   m_warp[warp_id]->set_next_pc(next_inst->pc + next_inst->isize);
 }
 
-void shader_core_ctx::issue() {   // 多个scheduler间采用Round Robin？是怎么组织的
+void shader_core_ctx::issue() {   // 若有多个scheduler，在多个scheduler采用Round Robin
   // Ensure fair round robin issu between schedulers
   unsigned j;
   for (unsigned i = 0; i < schedulers.size(); i++) {
     j = (Issue_Prio + i) % schedulers.size();
-    schedulers[j]->cycle();     // 这里一定可以issue出去吗？应该不一定，不然轮询有什么意义
+    schedulers[j]->cycle();     // issue阶段，单个scheduler执行的任务
+                                // 文档中有介绍，如更新operation collector或SIMT stack等
   }
-  Issue_Prio = (Issue_Prio + 1) % schedulers.size();
+  Issue_Prio = (Issue_Prio + 1) % schedulers.size();  // Issue_Prio是指多个scheduler间的优先级
 
   // really is issue;
   // for (unsigned i = 0; i < schedulers.size(); i++) {
@@ -1152,9 +1155,12 @@ void scheduler_unit::cycle() {
                              // waiting for pending register writes
   bool issued_inst = false;  // of these we issued one
 
-  order_warps();
+  order_warps();  // 对warp排序，是scheduler_unit中的虚函数
+                  // 其他scheduler继承自各自的scheduler_unit，实现各自的order_warps()
+                  // 父类的指针可以指向子类的对象，根据子类的类型执行对应的虚函数
+
   for (std::vector<shd_warp_t *>::const_iterator iter =
-           m_next_cycle_prioritized_warps.begin();
+           m_next_cycle_prioritized_warps.begin();      // 遍历所有warp，一旦有warp issued，则break
        iter != m_next_cycle_prioritized_warps.end(); iter++) {
     // Don't consider warps that are not yet valid
     if ((*iter) == NULL || (*iter)->done_exit()) {
@@ -1187,7 +1193,7 @@ void scheduler_unit::cycle() {
 
     while (!warp(warp_id).waiting() && !warp(warp_id).ibuffer_empty() &&
            (checked < max_issue) && (checked <= issued) &&
-           (issued < max_issue)) {
+           (issued < max_issue)) {        // 每个warp同周期最多发两条指令（可配置），故在这里用while而不是if
       const warp_inst_t *pI = warp(warp_id).ibuffer_next_inst();
       // Jin: handle cdp latency;
       if (pI && pI->m_is_cdp && warp(warp_id).m_cdp_latency > 0) {
@@ -1431,7 +1437,7 @@ void scheduler_unit::cycle() {
       else
         abort();  // issued should be > 0
 
-      break;
+      break;    // if (issued) break；一旦有warp issue出去就停止
     }
   }
 
